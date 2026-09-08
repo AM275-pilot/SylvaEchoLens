@@ -1,0 +1,112 @@
+// Sylva EchoLens: one microphone, adaptive gate, bounded event capture.
+// The custom Zephyr loader supplies SAI1_A and word-wide STM32U5 DMA.
+#include <Arduino_RouterBridge.h>
+#include <Arduino_LED_Matrix.h>
+#include "audio_capture.h"
+#include "acoustic_gate.h"
+#include "event_buffer.h"
+
+using namespace sylva;
+static AcousticGate gate;
+static EventBuffer recorder;
+static ArduinoLEDMatrix matrix;
+static int16_t frame[kChunkSamples];
+static char hex[kChunkSamples * 4 + 1];
+static uint64_t samplePosition = 0;
+static uint64_t triggerSample = 0;
+static uint32_t eventId = 0;
+static uint32_t skippedEvents = 0;
+static float triggerRms = 0;
+static float triggerNoise = 0;
+static bool healthy = false;
+static bool sending = false;
+static size_t txChunk = 0;
+static uint32_t lastTelemetryMs = 0;
+static uint32_t lastDisplayMs = 0;
+static uint32_t lastErrorMs = 0;
+static uint32_t lastTxMs = 0;
+static uint8_t levels[13] = {};
+
+static void drawLevel() {
+    // Approximately 6 dB per step, without requiring the loader's libm errno ABI.
+    // This is DC-removed RMS, not calibrated sound pressure.
+    static const float thresholds[] = {65, 130, 260, 519, 1036, 2068, 4125, 8231};
+    int level = 0;
+    while (level < 8 && gate.rms() >= thresholds[level]) ++level;
+    memmove(levels + 1, levels, 12);
+    levels[0] = static_cast<uint8_t>(level);
+    uint8_t pixels[104] = {};
+    for (int x = 0; x < 13; ++x) {
+        for (int row = 7; row >= 8 - levels[x]; --row) pixels[row * 13 + x] = 1;
+    }
+    matrix.draw(pixels);
+}
+
+void setup() {
+    matrix.begin();
+    Bridge.begin();
+    healthy = audio_init();
+    Bridge.notify("sylva_boot", 1, healthy ? "ready" : "error", audio_last_error());
+}
+
+void loop() {
+    if (!healthy) {
+        if (millis() - lastErrorMs >= 2000) {
+            lastErrorMs = millis();
+            Bridge.notify("sylva_error", audio_last_error());
+        }
+        delay(20);
+        return;
+    }
+    // Acquisition keeps running while a frozen event is transferred to Linux.
+    if (!audio_capture_chunk(frame, kChunkSamples)) {
+        healthy = false;
+        Bridge.notify("sylva_error", audio_last_error());
+        return;
+    }
+    if (gate.process(frame, kChunkSamples)) {
+        if (recorder.begin()) {
+            ++eventId;
+            triggerSample = samplePosition;
+            triggerRms = gate.rms();
+            triggerNoise = gate.noiseRms();
+        } else {
+            ++skippedEvents;
+        }
+    }
+    recorder.append(frame, kChunkSamples);
+    samplePosition += kChunkSamples;
+
+    // Pace the UART transfer while continuing to drain queued DMA samples.
+    if (recorder.state() == EventBuffer::State::Ready && millis() - lastTxMs >= 100) {
+        lastTxMs = millis();
+        if (!sending) {
+            Bridge.notify("sylva_begin", eventId, kSampleRate, kEventSamples,
+                          kPreSamples, triggerSample, triggerRms, triggerNoise);
+            sending = true;
+            txChunk = 0;
+        } else if (txChunk < kEventSamples / kChunkSamples) {
+            encodeSamples(recorder.data() + txChunk * kChunkSamples, kChunkSamples, hex);
+            Bridge.notify("sylva_chunk", eventId, static_cast<int>(txChunk), hex);
+            ++txChunk;
+        } else {
+            char crc[9];
+            snprintf(crc, sizeof(crc), "%08lx",
+                     static_cast<unsigned long>(pcmCrc32(recorder.data(), kEventSamples)));
+            Bridge.notify("sylva_end", eventId, static_cast<int>(txChunk), crc);
+            sending = false;
+            recorder.release();
+        }
+    }
+
+    const uint32_t now = millis();
+    if (now - lastDisplayMs >= 64) {
+        lastDisplayMs = now;
+        drawLevel();
+    }
+    if (now - lastTelemetryMs >= 1000) {
+        lastTelemetryMs = now;
+        Bridge.notify("sylva_level", gate.stateName(), gate.rms(), gate.noiseRms(),
+                      gate.openingThreshold(), gate.closingThreshold(), skippedEvents);
+    }
+}
