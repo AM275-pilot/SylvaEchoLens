@@ -1,0 +1,56 @@
+diff --git a/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.conf b/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.conf
+index 3e35f99..8ce9d1a 100644
+--- a/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.conf
++++ b/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.conf
+@@ -15,6 +15,7 @@ CONFIG_ICACHE=y
+ CONFIG_DCACHE=y
+ CONFIG_CACHE_MANAGEMENT=y
+ 
++CONFIG_I2S=y
+ CONFIG_DMA=y
+ CONFIG_MEMC=y
+ CONFIG_SPI_ASYNC=y
+diff --git a/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay b/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay
+index 1a03184..60f1e48 100644
+--- a/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay
++++ b/variants/arduino_uno_q_stm32u585xx/arduino_uno_q_stm32u585xx.overlay
+@@ -5,5 +5,39 @@
+  */
+ #include <zephyr/dt-bindings/pwm/stm32_pwm.h>
++/*
++ * INMP441 microphone on the Arduino UNO Q R3 headers:
++ *   WS  -> D10 / PB9  / SAI1_FS_A
++ *   SCK -> D21 / PB10 / SAI1_SCK_A
++ *   SD  -> A4  / PC1  / SAI1_SD_A
++ *
++ * MSIS is 4 MHz. PLL2 produces 49.151977 MHz:
++ *   4 MHz * (49 + 1245 / 8192) / 4
++ * This gives an integer SAI divider of 48 for 16 kHz, stereo, 32-bit slots.
++ */
++/ {
++	aliases {
++		i2s-rx = &sai1_a;
++	};
++};
++
++&pll2 {
++	div-m = <1>;
++	mul-n = <49>;
++	fracn = <1245>;
++	div-p = <4>;
++	div-q = <2>;
++	div-r = <2>;
++	clocks = <&clk_msis>;
++	status = "okay";
++};
++
++&sai1_a {
++	pinctrl-0 = <&sai1_fs_a_pb9 &sai1_sck_a_pb10 &sai1_sd_a_pc1>;
++	pinctrl-names = "default";
++	dma-names = "rx";
++	status = "okay";
++};
++
+ &i2c4 {
+ 	status = "okay";
+ 	zephyr,deferred-init;
