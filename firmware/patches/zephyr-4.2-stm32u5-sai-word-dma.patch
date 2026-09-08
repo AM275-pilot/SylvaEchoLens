@@ -1,0 +1,17 @@
+--- a/drivers/i2s/i2s_stm32_sai.c
++++ b/drivers/i2s/i2s_stm32_sai.c
+@@ -288,8 +288,12 @@ static int i2s_stm32_sai_dma_init(const struct device *dev)
+ 	hdma->Instance = LL_DMA_GET_CHANNEL_INSTANCE(stream->reg, stream->dma_channel);
+ 	hdma->Init.Request = dma_cfg.dma_slot;
+ 	hdma->Init.BlkHWRequest = DMA_BREQ_SINGLE_BURST;
+-	hdma->Init.SrcDataWidth = DMA_SRC_DATAWIDTH_HALFWORD;
+-	hdma->Init.DestDataWidth = DMA_DEST_DATAWIDTH_HALFWORD;
++	/* UNO Q INMP441 uses 32-bit I2S slots. The U5 GPDMA transfer width must
++	 * match the SAI data width; half-word transfers scramble each sample.
++	 * This loader enables SAI1_A exclusively for 24/32-bit audio capture.
++	 */
++	hdma->Init.SrcDataWidth = DMA_SRC_DATAWIDTH_WORD;
++	hdma->Init.DestDataWidth = DMA_DEST_DATAWIDTH_WORD;
+ 	hdma->Init.Priority = DMA_HIGH_PRIORITY;
+ 	hdma->Init.SrcBurstLength = 1;
+ 	hdma->Init.DestBurstLength = 1;
