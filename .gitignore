@@ -1,0 +1,13 @@
+deploy.env
+ei.env
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+*.zip
+*.wav
+.codex-build/
+artifacts/
+events/
+.pytest_cache/
+AGENTS.md
