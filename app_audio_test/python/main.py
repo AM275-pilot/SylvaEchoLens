@@ -5,24 +5,39 @@ from pathlib import Path
 from queue import Full, Queue
 from threading import Thread
 from arduino.app_utils import App, Bridge, Logger
+from classification import classifier_from_environment
 from event_receiver import EventReceiver, write_event
 
 logger = Logger("SylvaEchoLens")
 receiver = EventReceiver()
 pending = Queue(maxsize=2)
 output = Path(os.getenv("SYLVA_EVENT_DIR", "/app/events"))
+classifier = classifier_from_environment()
 
 
 def save_loop():
     while True:
         event = pending.get()
         try:
-            path, metadata = write_event(output, event)
+            path, metadata = write_event(
+                output, event, classifier.classify if classifier else None
+            )
+            classification = metadata.get("classification")
+            decision = (
+                f"; birdnet={classification['label']} "
+                f"score={classification['score']:.3f} "
+                f"accepted={classification['accepted']}"
+                if classification else ""
+            )
             logger.info(
                 f"Event saved: {path.name}; RMS={metadata['rms']:.2f}; "
-                f"peak={metadata['peak']}; sha256={metadata['sha256']}"
+                f"peak={metadata['peak']}; sha256={metadata['sha256']}{decision}"
             )
-            # Attach inference here in the next milestone, outside Bridge callbacks.
+            if "classification_error" in metadata:
+                logger.warning(
+                    f"Inference failed for {path.name}: "
+                    f"{metadata['classification_error']['message']}"
+                )
         except Exception:
             logger.exception("Event persistence failed")
         finally:
@@ -75,4 +90,8 @@ Bridge.provide("sylva_level", on_level)
 Bridge.provide("sylva_error", lambda error: logger.error(f"MCU capture error: {error}"))
 Thread(target=save_loop, daemon=True, name="event-writer").start()
 logger.info("Ready for mono events; startup calibration takes about five seconds")
+logger.info(
+    "Offline BirdNET v2.4 classification enabled"
+    if classifier else "Local classification disabled"
+)
 App.run()
