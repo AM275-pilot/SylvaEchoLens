@@ -97,8 +97,8 @@ class EventReceiver:
         return pcm, metadata
 
 
-def write_event(directory, event):
-    """Write WAV atomically, then its provenance sidecar. Never erase old events."""
+def write_event(directory, event, classify=None):
+    """Write WAV, optionally classify it, then publish its provenance sidecar."""
     pcm, source_metadata = event
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
@@ -124,6 +124,14 @@ def write_event(directory, event):
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "classification": None,
     })
+    if classify is not None:
+        try:
+            metadata["classification"] = classify(path)
+        except Exception as exc:
+            # The checked recording remains useful evidence when inference fails.
+            metadata["classification_error"] = {
+                "type": type(exc).__name__, "message": str(exc),
+            }
     sidecar_tmp = directory / f".{name}.json.tmp"
     sidecar_tmp.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     sidecar_tmp.replace(directory / f"{name}.json")

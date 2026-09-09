@@ -49,6 +49,33 @@ class ReceiverTests(unittest.TestCase):
             self.assertEqual(metadata, json.loads(path.with_suffix(".json").read_text()))
             self.assertIsNone(metadata["classification"])
 
+    def test_classification_is_published_with_evidence(self):
+        self.fill()
+        event = self.receiver.end(1, 128, f"{zlib.crc32(PCM * 128):08x}")
+        result = {
+            "label": "target-replay", "score": 0.81, "accepted": True,
+            "model": "test-model", "version": "1", "threshold": 0.6,
+            "backend": "test",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path, metadata = write_event(temporary, event, classify=lambda _: result)
+            self.assertEqual(metadata["classification"], result)
+            self.assertNotIn("classification_error", metadata)
+            self.assertEqual(metadata, json.loads(path.with_suffix(".json").read_text()))
+
+    def test_inference_failure_keeps_checked_recording(self):
+        self.fill()
+        event = self.receiver.end(1, 128, f"{zlib.crc32(PCM * 128):08x}")
+
+        def fail(_):
+            raise RuntimeError("model unavailable")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path, metadata = write_event(temporary, event, classify=fail)
+            self.assertTrue(path.exists())
+            self.assertIsNone(metadata["classification"])
+            self.assertEqual(metadata["classification_error"]["type"], "RuntimeError")
+
     def test_missing_chunk_rejected(self):
         self.receiver.chunk(1, 0, HEX)
         with self.assertRaisesRegex(ValueError, "incomplete"):
