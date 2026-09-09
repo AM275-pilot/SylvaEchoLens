@@ -26,6 +26,7 @@ static uint32_t lastDisplayMs = 0;
 static uint32_t lastErrorMs = 0;
 static uint32_t lastTxMs = 0;
 static uint8_t levels[13] = {};
+static constexpr uint8_t kLedOn = 7;
 
 static void drawLevel() {
     // Approximately 6 dB per step, without requiring the loader's libm errno ABI.
@@ -37,13 +38,16 @@ static void drawLevel() {
     levels[0] = static_cast<uint8_t>(level);
     uint8_t pixels[104] = {};
     for (int x = 0; x < 13; ++x) {
-        for (int row = 7; row >= 8 - levels[x]; --row) pixels[row * 13 + x] = 1;
+        for (int row = 7; row >= 8 - levels[x]; --row) pixels[row * 13 + x] = kLedOn;
     }
     matrix.draw(pixels);
 }
 
 void setup() {
     matrix.begin();
+    // The loader boot animation uses 8-bit grayscale and leaves that global state
+    // behind. Select the 3-bit depth expected by this sketch on every boot.
+    matrix.setGrayscaleBits(3);
     Bridge.begin();
     healthy = audio_init();
     Bridge.notify("sylva_boot", 1, healthy ? "ready" : "error", audio_last_error());
