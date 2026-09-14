@@ -1,0 +1,8 @@
+[Unit]
+Description=Sylva EchoLens Linux suspend-to-idle request
+Documentation=file:///home/arduino/ArduinoApps/audio-test/power/README
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/sylva-linux-suspend
+TimeoutStartSec=infinity

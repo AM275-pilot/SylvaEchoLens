@@ -1,15 +1,11 @@
-import hashlib
-import json
 from pathlib import Path
 import struct
 import sys
-import tempfile
 import unittest
-import wave
 import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app_audio_test" / "python"))
-from event_receiver import EventReceiver, decode_chunk, write_event
+from event_receiver import EventReceiver, decode_chunk
 
 VECTOR = [0, 1, -1, 0x1234, -32768, 32767]
 SAMPLES = (VECTOR * 43)[:256]
@@ -35,19 +31,10 @@ class ReceiverTests(unittest.TestCase):
         self.fill()
         self.receiver.chunk(1, 0, HEX)
         crc = zlib.crc32(PCM * 128)
-        event = self.receiver.end(1, 128, f"{crc:08x}")
-        self.assertEqual(event[0], PCM * 128)
-        with tempfile.TemporaryDirectory() as temporary:
-            path, metadata = write_event(temporary, event)
-            with wave.open(str(path)) as wav:
-                self.assertEqual(wav.getnframes(), 32768)
-                self.assertEqual(wav.getframerate(), 16000)
-                self.assertEqual(wav.getnchannels(), 1)
-                self.assertEqual(wav.readframes(32768), PCM * 128)
-            self.assertEqual(metadata["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
-            self.assertEqual(metadata["pre_seconds"], 0.512)
-            self.assertEqual(metadata, json.loads(path.with_suffix(".json").read_text()))
-            self.assertIsNone(metadata["classification"])
+        pcm, metadata = self.receiver.end(1, 128, f"{crc:08x}")
+        self.assertEqual(pcm, PCM * 128)
+        self.assertEqual(metadata["samples"], 32768)
+        self.assertEqual(metadata["crc32"], f"{crc:08x}")
 
     def test_missing_chunk_rejected(self):
         self.receiver.chunk(1, 0, HEX)

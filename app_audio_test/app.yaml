@@ -3,5 +3,9 @@ icon: "🎙️"
 description: >
   Sylva EchoLens mono acoustic observer. The MCU estimates background energy
   and captures adaptive-threshold events with pre-event audio. Python verifies
-  sample integrity and writes WAV files with provenance metadata.
+  sample integrity, runs offline BirdNET v2.4 inference, and writes WAV files
+  with provenance metadata. Bounded retention preserves record and system space,
+  while recognition-only fallback and restart reconciliation support disconnection.
+  The experimental suspend-to-idle path is disabled by default after UART wake did
+  not pass device acceptance.
 ports: []
