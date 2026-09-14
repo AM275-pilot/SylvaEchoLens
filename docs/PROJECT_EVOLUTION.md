@@ -1,286 +1,305 @@
 # Sylva EchoLens: Listen First, Keep the Evidence, Understand It Locally
 
-Sylva EchoLens is a compact edge AI acoustic observer built around Arduino UNO Q.
-It listens continuously through one digital microphone, selects meaningful sound
-events on the real-time microcontroller, verifies them across the processor boundary
-and runs wildlife classification locally. The result is an observation that remains
-useful even when the device has no Internet connection.
+Sylva EchoLens is an offline acoustic wildlife observer built around Arduino UNO Q.
+It listens through one digital microphone, selects relevant sound events on the
+real-time microcontroller, checks that every sample reaches Linux intact and runs
+BirdNET locally. Each result becomes a traceable observation instead of a label with
+no evidence behind it.
 
-The current model is the power-saving member of a broader monitoring platform. Its
-purpose is not to carry every possible sensor. It concentrates hardware, storage and
-computation on the part that must never stop: listening for an event and preserving
-enough evidence to understand it later.
+The goal is simple: keep observing where an Internet connection cannot be assumed.
 
-## From a broad idea to a focused instrument
+## Why I decided to build it
 
-The project began as a larger wildlife-monitoring concept. Acoustic localization,
-visual confirmation, environmental sensors, pan-and-tilt movement and a dashboard
-were all considered. That direction was attractive, but building everything at once
-would have hidden the most important question: could the system acquire trustworthy
-audio and turn it into a traceable local observation?
+Wildlife monitoring often happens in exactly the places where cloud-dependent
+systems are least comfortable. Connectivity can be slow, intermittent or absent,
+yet an animal call lasts only a moment. If the device cannot decide what to keep at
+the edge, that moment may disappear before anyone can inspect it.
 
-The physical prototype also established a firm constraint. It has one INMP441
-microphone. The two slots visible in its Inter-IC Sound (I2S) stream are framing, not
-two independent sensors. A single microphone cannot provide honest direction
-finding, so localization and camera aiming moved out of the first product variant.
+I wanted to explore a different kind of observer: small enough to remain focused,
+honest about uncertainty and useful even while disconnected. The device should not
+just output a species name. It should preserve how that result was produced: the
+audio geometry, the trigger position, transport checks, model identity, score,
+threshold, time quality and whether the original recording is still available.
 
-That decision made the project smaller, but stronger. Sylva EchoLens became an
-acoustic-first instrument: one microphone, no camera, no servos and no continuous
-visual workload.
+The project began with a broader idea that included sound localization, a camera,
+pan-and-tilt movement, environmental sensors and a dashboard. Planning the first
+prototype established a deliberate development order: the hardware on my bench had
+one INMP441 microphone, so the first milestone would prove the complete mono evidence
+path. The two slots in an Inter-IC Sound (I2S) frame are not two microphones, and one
+microphone alone cannot yet provide an honest direction estimate.
 
-*[Suggested visual: the complete compact prototype, photographed from above with the
-UNO Q and microphone clearly visible.]*
+This is a prioritization decision, not a statement that expansion is impossible.
+The architecture is intended to progress. Once capture fidelity, event selection,
+local inference, storage resilience and power are validated, the planned path is to
+add synchronized microphone channels, measure their geometry and timing, validate a
+direction estimator and only then use that result for optional visual orientation.
+Focusing first on trustworthy mono audio gives those later stages a tested input
+rather than building localization on uncertain samples.
 
-## Building a trustworthy audio path
+## What I built
 
-The first recordings appeared to contain data, but a nonzero waveform was not enough
-to prove that the samples meant the same thing on both processors. Investigation
-revealed a byte-order inconsistency between the microcontroller and Linux sides.
+The current prototype uses:
 
-The contract was corrected at its source. The STM32 now keeps native signed pulse-code
-modulation samples. The Bridge transports numeric sample values, and Linux alone
-serializes the little-endian WAV representation. A cyclic redundancy check verifies
-the complete event in transit, while SHA-256 identifies the final stored audio.
+- one Arduino UNO Q;
+- one INMP441 digital I2S microphone;
+- six jumper wires for power, ground, clock, word select, data and channel select;
+- a USB-C data connection for development and evidence collection;
+- a separate speaker only when running controlled acoustic replay tests.
 
-This change is central to the project. A classifier result is only as trustworthy as
-the signal that produced it. Sylva EchoLens therefore rejects incomplete or corrupt
-events instead of filling missing data with invented silence.
+The INMP441 runs at 3.3 V and sends a mono stream to the STM32 side of the UNO Q.
+The STM32 performs continuous acquisition and lightweight event detection. The
+Qualcomm Linux processor receives only selected windows, validates them, stores the
+observation and runs BirdNET v2.4 through LiteRT.
 
-The verified capture is mono, 16 kHz and 16-bit. Each event contains 32,768 samples,
-or 2.048 seconds of sound. The first 8,192 samples preserve 0.512 seconds from before
-the trigger confirmation, so the saved recording includes the beginning of a call
-rather than starting after it has already been detected.
+The complete wiring net list and every current logical diagram are collected in the
+[Sylva EchoLens schematics](https://github.com/AM275-pilot/SylvaEchoLens/blob/develop/docs/SCHEMATICS.md).
+The full source is available in the
+[project repository](https://github.com/AM275-pilot/SylvaEchoLens).
 
-*[Suggested visual: a waveform evidence card with the pre-event region shaded and
-the confirmation boundary marked.]*
+## How it works
 
-## Turning continuous audio into bounded events
+### 1. Listen continuously on the real-time processor
 
-Periodic recording was useful during bring-up, but it was not the right behavior for
-an unattended observer. The firmware therefore evolved into an adaptive acoustic
-gate running on the STM32.
+The STM32 receives the microphone stream through a custom SAI1/I2S and Direct Memory
+Access (DMA) path. DMA keeps acquisition moving while the firmware evaluates the
+signal and communicates with Linux.
 
-The gate removes direct-current offset, estimates recent background energy and opens
-only after repeated evidence above its threshold. Hysteresis prevents rapid switching
-near the boundary, while cooldown avoids immediately retriggering on the same sound.
-A rolling buffer is always maintained so pre-event audio is available when a trigger
-is confirmed.
+The verified format is mono, signed 16-bit pulse-code modulation at a configured
+16 kHz. That means the current capture cannot represent frequencies above the 8 kHz
+Nyquist limit. This is an important boundary for bird calls and is recorded rather
+than hidden.
 
-This detector identifies acoustic contrast, not a species. Wind, speech, machinery
-and other sounds can trigger it. That distinction is deliberate: the STM32 performs
-the deterministic, low-complexity task of deciding what is worth keeping; wildlife
-interpretation happens later on Linux.
+### 2. Learn the background and detect acoustic contrast
 
-The microcontroller has one immutable event slot. It never overwrites an event being
-transferred. Closely spaced triggers may therefore be counted as skipped, making
-throughput limits visible rather than silently corrupting evidence.
+At startup the detector settles for two seconds and measures the background for
+three seconds. It removes direct-current offset, estimates background energy and
+opens only when two of three consecutive 16 ms frames rise above an adaptive
+threshold. Hysteresis and a cooldown period reduce repeated triggers around the
+same boundary.
 
-*[Suggested visual: App Lab logs showing settling, calibration, listening and a
-confirmed event.]*
+This stage detects a sound that differs from the recent background. It does not
+recognize a species. Wind, speech, machinery and other sounds can also open the
+gate, which is why classification and negative controls are separate validation
+steps.
 
-## Local wildlife inference
+### 3. Keep the beginning of the sound
 
-Once the audio path was coherent, the project added local classification. The current
-model is the official BirdNET v2.4 FP32 model executed on the UNO Q Linux processor
-through LiteRT.
+A rolling memory always retains the most recent samples. When a trigger is confirmed,
+the firmware freezes a 2.048-second event containing 0.512 seconds from before the
+confirmation frame. This pre-event history helps preserve the beginning of a short
+call instead of starting the recording after detection.
 
-The recorded event is shorter and uses a lower sample rate than BirdNET's native
-input. The adapter resamples it from 16 kHz to 48 kHz and pads it to three seconds.
-This makes the geometry compatible, but does not recreate frequencies above the
-original 8 kHz Nyquist limit. That capture boundary remains part of the evidence.
+Only one immutable event is held at a time. A new trigger never overwrites an event
+being transferred. Closely spaced sounds can therefore be counted as skipped. That
+is a known throughput limit, but it is preferable to silently corrupting evidence.
 
-BirdNET always ranks species, including for speech, machinery or unfamiliar
-backgrounds. Sylva EchoLens does not present every ranking as a detection. It keeps
-the five best candidates and records `unknown` when the highest score is below the
-configured acceptance threshold. Every result includes the model identity, version,
-score, threshold, backend and input-conversion facts.
+### 4. Verify the event across both processors
 
-The model has run successfully on the physical UNO Q and inside its container with
-networking disabled, using pre-provisioned dependencies and cached model assets.
-This proves local offline execution. It does not yet establish species-recognition
-accuracy, which requires a versioned labeled replay set and negative controls.
+The Bridge transports numeric sample values from the STM32 to Linux. A CRC-32 covers
+the exact little-endian PCM bytes, and the Linux receiver rejects invalid geometry,
+missing chunks, conflicting duplicates, timeouts or checksum failures. It never
+inserts invented silence to make an incomplete event look valid.
 
-*[Suggested visual: one observation record showing BirdNET candidates, score,
-threshold and an honest `unknown` decision.]*
+After a valid transfer, Linux produces an evidence record and, while the audio
+budget permits, a WAV file. SHA-256 identifies the stored audio. The record also
+contains the trigger and background levels, duration, peak, clipped-sample count,
+session identity and timing provenance.
 
-## Offline means more than “no network”
+This verification step came from an early failure. The first recordings contained
+nonzero data, but investigation found a byte-order mismatch between the two
+processors. Fixing the sample contract and checking it across languages was more
+important than rushing to a classifier. A model can only be as trustworthy as its
+input.
 
-An offline field unit must also handle finite storage, interrupted writes, restarts
-and an uncertain clock. These conditions are now explicit parts of the application
-rather than assumptions left to the operator.
+### 5. Run wildlife inference locally
 
-Storage is divided into three boundaries:
+The checked WAV is analyzed by the official BirdNET v2.4 FP32 model on the UNO Q
+Linux processor. The application pins the BirdNET package and LiteRT runtime and
+keeps the downloaded model in persistent local storage.
 
-- an audio budget for retained event WAV files;
-- a reserve for compact observation records;
-- a system reserve that the application must not consume.
+BirdNET expects a three-second mono window at 48 kHz. Sylva EchoLens currently
+produces 2.048 seconds at 16 kHz, so the adapter resamples and zero-pads the event.
+Those transformations are written into the observation record. Resampling makes the
+file compatible with the model, but it cannot reconstruct frequencies absent from
+the original capture.
 
-While the audio budget permits, an observation retains both its JSON record and its
-WAV evidence. Under pressure, the configured retention policy may remove only the
-application's own indexed, unprotected and valid WAV files. Their JSON records,
-original hashes and removal reasons remain.
+BirdNET always ranks candidates, even for unfamiliar or non-wildlife sounds. To
+avoid presenting every ranking as a detection, Sylva EchoLens retains the five best
+candidates and publishes `unknown` when the highest score is below the configured
+0.25 threshold. Every prediction includes the model name, version, backend, score
+and threshold.
 
-If permanent audio cannot be admitted, BirdNET processes a bounded temporary WAV
-that is deleted after inference. The durable observation is then marked
-`never_retained`. This recognition-only mode extends useful storage life, but the
-trade-off is visible: without audio, the observation cannot later be listened to or
-reclassified.
+The model has completed inference on the physical UNO Q and in a container with
+networking disabled, using only cached assets. This proves local execution. It does
+not yet prove recognition accuracy for this microphone and deployment context; that
+requires a versioned labeled replay set plus quiet, speech and background controls.
 
-Writes use temporary files and atomic publication. At startup, the application
-reconciles interrupted JSON publication, incomplete temporary audio, previously
-authorized retention, missing or corrupt WAVs and orphan recordings. Questionable
-evidence is described and preserved where possible; it is not silently repaired.
+A first positive replay is now recorded. After the operator announced an assiolo
+playback, two retained and independently audited events were classified as
+`Otus scops_Eurasian Scops-Owl` at 0.996 and 0.997. Both passed the 0.25 acceptance
+threshold with no clipped samples. This is precise evidence of the device response
+to that replay, not a claim that a wild owl was present or that accuracy is already
+known. The source, license, speaker distance and playback setting still need to be
+attached, together with negative controls and repeated levels.
 
-Every new observation also records the wall-clock source and declared quality,
-Linux boot identity, monotonic time and the trigger position from the MCU. Time is
-`unverified` by default, and a backward clock movement relative to the persisted
-anchor is marked `regressed`. The software does not assume that a disconnected
-device always knows accurate UTC.
+### 6. Degrade gracefully when storage becomes scarce
 
-*[Suggested visual: two compact records side by side—one with retained audio and one
-in recognition-only mode.]*
+Offline operation is more than disconnecting the network. A field device must also
+handle finite storage, interrupted writes, restarts and an uncertain clock.
 
-## Why this is the power-saving variant
+Sylva EchoLens separates storage into an audio budget, a reserve for compact
+observation records and a system-space reserve. While space is available, an
+observation retains both its JSON record and WAV evidence. Under pressure, the
+retention policy may remove only the application's own indexed, unprotected WAVs.
+Their records, original hashes and removal reasons remain.
 
-The current saving is architectural and already active.
+If permanent audio cannot be admitted, BirdNET uses a bounded temporary WAV. The
+temporary file is deleted after inference and the durable record is explicitly
+marked `never_retained`. This recognition-only mode keeps producing compact
+observations, but it also states the cost: without the audio, later listening or
+reclassification is impossible.
 
-The STM32 performs continuous capture and the lightweight gate. The heavier BirdNET
-workload runs only for a complete event worth analyzing. The compact node carries no
-camera, lighting, servo or environmental-sensor load, and bounded retention prevents
+Writes use temporary files and atomic publication. On startup the application
+reconciles pending records, incomplete temporary audio, missing or corrupt WAVs and
+orphan recordings. Each observation records wall-clock source and declared quality,
+Linux boot identity, monotonic time and MCU trigger position. Time is `unverified`
+by default, and backward movement is marked `regressed`.
+
+## The power-saving approach—and the experiment that failed
+
+The compact variant saves work by design. The STM32 performs continuous lightweight
+acquisition, while BirdNET runs only after a complete event is worth analyzing. The
+node carries no camera, illumination or servo load. Bounded retention also prevents
 the audio archive from growing without control.
 
-This is a clear power-saving position within the wider Sylva EchoLens family: keep
-the continuous task small, activate expensive computation only on demand and avoid
-peripherals that are not required by the acoustic mission.
+This is an architectural power-saving approach, not a measured battery-life claim.
+Linux remains awake in the supported release configuration, and whole-board power
+has not yet been measured.
 
-Linux remains awake in the release configuration. Whole-board consumption and
-battery autonomy have not yet been measured, so no runtime claim is derived from
-software behavior alone.
+I also prototyped Linux suspend-to-idle to test whether the STM32 could keep listening
+and wake Linux after an acoustic event. The software used a restricted host helper,
+an MCU arm/disarm handshake and a buffered wake-causing event. The board genuinely
+entered and exited kernel `s2idle`, but deliberate nearby sound did not produce a
+repeatable, attributable UART wake. Other enabled sources caused some resumes, and
+controlled recovery required power control or a power cycle.
 
-## A power experiment that changed the direction
+That result failed the acceptance criterion for an unattended observer. Suspend is
+therefore disabled by default and excluded from the release. The failed experiment
+is documented because it changed the design direction: future low-power work must
+begin with actual measurements and an independently verified wake source, not with
+an assumption that a writable UART setting guarantees wake.
 
-A suspend-to-idle prototype was developed to test whether Linux could sleep while
-the STM32 continued listening. The implementation included a restricted host helper,
-an explicit MCU arm/disarm handshake, suppressed routine telemetry and a buffered
-event intended to wake Linux over the Bridge UART before transfer.
+## What has been demonstrated
 
-The test produced useful evidence. The kernel entered and exited suspend-to-idle,
-and the application and MCU handshake worked while awake. On the physical board,
-however, an acoustic event did not provide a repeatable, observable UART wake. Some
-resumes were caused by other enabled sources, and controlled recovery required the
-power control or a power cycle.
+The current evidence supports these claims:
 
-That behavior is not acceptable for an unattended observer, so automatic Linux
-suspend is disabled and excluded from the release boundary. The failed acceptance
-test is still valuable: it shows that a writable UART wake setting does not by itself
-prove end-to-end wake capability.
+- continuous mono acquisition works through the verified custom I2S loader;
+- the adaptive gate and pre-event buffer run on the physical board;
+- device WAV events have passed geometry, CRC-32 and SHA-256 audits;
+- BirdNET v2.4 inference runs locally from cached assets without network access;
+- two audited events from an announced assiolo replay returned accepted `Otus scops`
+  results at 0.996 and 0.997;
+- isolated UNO Q smoke tests exercised audio quota transitions, protected retention,
+  recognition-only inference, orphan recovery and a clean application restart;
+- 38 Python host tests pass, including a multiprocessing entrypoint regression test;
+- the portable C++ acoustic-pipeline test passes with address and undefined-behavior
+  sanitizers, including a shared cross-language CRC vector.
 
-Future low-power work should begin with measured board consumption and a verified
-hardware wake path. A dedicated wake line, a different Linux power state or a power
-controller may be more appropriate than relying on the current Bridge UART.
+These results demonstrate an end-to-end edge pipeline and its evidence handling.
+They do not demonstrate calibrated microphone sensitivity, representative species
+accuracy, long-term unattended operation, physical power-cut recovery or battery
+autonomy.
 
-## What is working now
+## Reproducing the build
 
-The current physical prototype and matched software provide:
+The active source is in `app_audio_test/`; that historical directory name remains
+for repository continuity. The application displayed and started on Arduino UNO Q is
+named `SylvaEchoLens`.
 
-- continuous mono acquisition through the verified custom I2S loader;
-- adaptive event detection with pre-trigger audio;
-- fixed event geometry and explicit busy-event counting;
-- cross-processor geometry and checksum validation;
-- local BirdNET v2.4 inference with ranked candidates and an `unknown` policy;
-- offline audio quotas, protected retention and recognition-only fallback;
-- atomic observation records and startup reconciliation;
-- explicit timestamp quality and ordering evidence;
-- guarded build, deployment and rollback procedures.
+1. Wire the single INMP441 exactly as shown in the schematics: 3.3 V, ground, I2S
+   clock, word select, data and L/R tied to ground for the left slot.
+2. Run the Python unit tests and the portable C++ gate/buffer test.
+3. Read the deployment runbook before uploading. The project depends on a verified
+   custom I2S loader, and a stock-core workflow can replace it.
+4. Use the guarded build and deployment scripts. The Linux deployment creates a
+   rollback snapshot before replacing the current board application.
+5. Leave the startup environment representative for the five-second settling and
+   calibration interval.
+6. Trigger a documented sound, retain the matching WAV/JSON pair and audit it with
+   `scripts/audit-events.py`.
+7. Repeat with a licensed labeled bird call, quiet, speech and representative
+   background controls at recorded playback levels and distances.
 
-Board events have passed geometry, cyclic redundancy check and file-hash audits.
-BirdNET has completed inference without network access. Isolated device tests have
-exercised audio quota transitions, retention, recognition-only persistence, orphan
-reconciliation and a clean application restart.
+The repository contains the complete source, pinned Python dependencies, firmware
+patches, tests, runbook, validation records, decisions and laboratory notebook.
+Generated toolchains, credentials and raw field recordings are deliberately kept
+out of Git.
 
-Automated host verification currently contains 37 passing Python tests, together
-with portable C++ checks for the acoustic gate, event buffer and sample contract.
-These tests support the implementation but do not replace field evidence.
+## Planned field hardware
 
-## Current limits
+The current USB-powered bench prototype is the acoustic and inference foundation.
+The planned field version adds an autonomous energy chain: a photovoltaic panel,
+a rechargeable battery, a charge controller with battery protection and a regulated
+power path sized for the complete UNO Q workload. Panel area and battery capacity
+will be selected only after measuring awake baseline, audio transfer, BirdNET
+inference and storage energy under realistic event rates. Until those measurements
+exist, the project does not claim a specific number of autonomous days.
 
-The project keeps its release claims deliberately bounded:
+The electronics are also intended to move into a weather-resistant enclosure. The
+UNO Q, battery, charger and connectors will remain inside a sealed volume with cable
+strain relief. The microphone needs an acoustic path to the outside, so it will sit
+behind a downward-facing opening protected by an acoustically transparent,
+hydrophobic membrane and a replaceable open-cell foam windscreen. These protective
+foam elements reduce direct droplets, wind and debris while leaving the microphone
+acoustically exposed.
 
-- the detector selects acoustic contrast and may react to non-wildlife sound;
-- capture at 16 kHz cannot represent frequencies above 8 kHz;
-- one event transfer takes roughly thirteen seconds and dense activity can produce
-  visible skipped-event counts;
-- thresholds are engineering defaults, not calibrated sound-pressure values;
-- BirdNET accuracy and the acceptance threshold are not yet validated on a
-  representative dataset for this exact device;
-- recognition-only records cannot be re-audited without their original audio;
-- full power-cut recovery and long-duration endurance still need controlled trials;
-- automatic Linux suspend is disabled because acoustic wake did not pass device
-  acceptance;
-- battery duration and solar sizing require measured whole-board energy.
+The enclosure must be tested rather than assumed waterproof. Planned acceptance
+includes spray and driven-rain tests without powered electronics, drainage and
+condensation inspection, before/after frequency-response comparison, wind-noise
+trials and long outdoor temperature cycles. The microphone port must never become a
+path that channels water toward the board or battery.
 
-These boundaries do not weaken the prototype. They define exactly what the current
-evidence proves and prevent an experimental result from becoming a product claim.
+This mechanical design also leaves room for the planned sensing progression. A
+later enclosure revision can establish a known baseline between synchronized
+microphones for direction estimation. Only after that geometry is calibrated would
+a camera or pan-and-tilt mechanism be added to a larger variant.
 
-## Where the project can go next
+## Current limits and next steps
 
-The strongest next step is a repeatable labeled evaluation. A versioned set should
-combine target bird calls, quiet, speech, machinery and representative outdoor
-backgrounds. Source, license, playback level, speaker distance and expected outcome
-must accompany every run, including false triggers, missed events and `unknown`
-results.
+The next milestone is a repeatable labeled evaluation. It will combine licensed
+target bird calls with quiet, speech, machinery and representative outdoor
+backgrounds. Every accepted result, `unknown`, false trigger and missed event should
+remain in the record. The 0.25 threshold must be evaluated on that set rather than
+tuned from one successful playback.
 
-Resilience testing should then interrupt each persistence phase in isolated scratch
-storage and exercise application, Linux and whole-board restarts. A sustained event
-and storage-pressure run will show whether the current bounded design behaves well
-over time.
+The persistence path still needs controlled interruption during each write phase,
+followed by application, Linux and whole-board restarts and a longer endurance run.
+Power work must measure the awake baseline, acquisition, transfer, inference and
+storage activity before choosing the battery, charge controller and solar-panel
+area. Enclosure work must verify water protection, condensation behavior and the
+acoustic effect of the membrane and foam rather than relying on appearance alone.
 
-Power work begins with measurement: awake baseline, continuous acquisition, event
-transfer, BirdNET inference and storage writes. Those values, combined with a measured
-event rate, can drive battery and photovoltaic sizing. A future sleep design should
-return only after its wake source is demonstrated independently.
+A local observation timeline is a natural next software feature. It can expose
+candidates, audio-retention status, timestamp quality and storage health without
+changing the evidence pipeline.
 
-The existing observation schema is also ready to support a user-facing wildlife
-timeline. A dashboard can present candidates, retained-audio status, timestamp
-quality, storage health and export without changing the core evidence pipeline.
+The hardware roadmap is also explicit. A second synchronized microphone is the next
+localization step, followed by channel-alignment tests, known-angle replay trials and
+an error map across distance and frequency. If that evidence supports reliable
+direction estimates, a later variant can add camera confirmation and pan-and-tilt.
+Each stage has its own acceptance test and power budget. None is claimed for the
+current one-microphone device, but the progression is planned and technically open.
 
-Richer platform variants may later add synchronized microphones, direction
-estimation, camera confirmation, calibrated environmental sensing or multiple nodes.
-Each addition changes power, privacy, storage and validation requirements; none is
-presented as a hidden capability of the current single-microphone unit.
+## What Sylva EchoLens is becoming
 
-## The current release position
+Sylva EchoLens started as a broad wildlife-monitoring idea and became a focused,
+auditable acoustic instrument. It listens continuously, keeps the beginning of a
+sound, refuses corrupt events, classifies locally and preserves useful records when
+the network or audio-storage budget is unavailable.
 
-Sylva EchoLens has evolved from a feature-rich wildlife-monitoring proposal into a
-focused and auditable acoustic edge instrument. The compact prototype listens,
-selects bounded events, preserves what happened before the trigger, verifies samples
-across processors, classifies locally and retains useful observation records under
-offline storage pressure.
-
-Its most important result is not a single species label. It is the evidence chain:
-from microphone sample, to MCU decision, to checked event, to local model output, to
-an observation that states both what is known and what remains uncertain.
-
-That makes the current acoustic-only model a coherent power-saving release candidate
-and a reliable foundation for the larger Sylva EchoLens platform.
-
----
-
-## Publication media checklist — not part of the Story body
-
-Use real captures from the matched prototype. Detailed component lists, purchasing
-links, schematics, source files and application inventories belong in Hackster's
-dedicated fields rather than being duplicated in the Story.
-
-1. Use a centered 4:3 cover photograph of the actual compact node under clean,
-   diffuse lighting.
-2. Add an annotated top-down wiring photograph after the project focus section.
-3. Add a close-up where the microphone labels and orientation are readable.
-4. Add a log capture showing calibration, listening, trigger and local inference.
-5. Add a waveform evidence card with the pre-trigger boundary highlighted.
-6. Add one retained-audio JSON example and one recognition-only JSON example.
-7. Add a concise limitations table or diagram near the release position.
-8. Identify every replay as a replay and retain its source, license, distance and
-   playback setting.
-9. Do not use stock wildlife imagery as implementation evidence.
-10. Proofread the pasted Story after the editor applies its own formatting.
+Its most important result is not a single species label. It is the evidence chain
+from microphone sample to MCU decision, checked event, local model output and honest
+observation record. That foundation makes the current acoustic-only prototype useful
+today while leaving the design open: the next versions can add localization, visual
+confirmation, environmental context and multiple collaborating nodes without
+abandoning the verified evidence path built first.

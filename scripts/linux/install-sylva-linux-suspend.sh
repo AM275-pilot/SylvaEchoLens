@@ -7,7 +7,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-power_dir=/home/arduino/ArduinoApps/audio-test/power
+power_dir=/home/arduino/ArduinoApps/sylvaecholens/power
 
 install -d -m 0755 /usr/local/libexec
 install -m 0755 "$source_dir/sylva-linux-suspend" /usr/local/libexec/sylva-linux-suspend

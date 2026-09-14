@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [string]$AdbPath = "$env:LOCALAPPDATA/Arduino15/packages/arduino/tools/adb/32.0.0/adb.exe",
-    [string]$RemoteApp = "/home/arduino/ArduinoApps/audio-test"
+    [string]$RemoteApp = "/home/arduino/ArduinoApps/sylvaecholens"
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,7 +12,7 @@ $root = (git -C $scriptRoot rev-parse --show-toplevel).Trim()
 if ($LASTEXITCODE -ne 0) { throw "The deployment script must run from a Git checkout." }
 $root = (Resolve-Path $root).Path
 if ($root -ne $scriptRoot) { throw "The scripts directory is not at the repository root: $root" }
-if ($RemoteApp -ne "/home/arduino/ArduinoApps/audio-test") {
+if ($RemoteApp -ne "/home/arduino/ArduinoApps/sylvaecholens") {
     throw "Refusing unexpected remote app path: $RemoteApp"
 }
 if (-not (Test-Path -LiteralPath $AdbPath)) { throw "ADB not found: $AdbPath" }

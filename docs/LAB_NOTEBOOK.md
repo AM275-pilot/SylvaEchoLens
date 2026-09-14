@@ -1,5 +1,63 @@
 # Lab notebook
 
+## 2026-09-14 — Reconcile documentation after offline and power experiments
+
+- Verified the authoritative repository, `develop` baseline `92dd668` and origin
+  before changing documentation.
+- Added one current capability ledger that distinguishes implemented, host-tested,
+  device-tested and outstanding acceptance work.
+- Updated the persisted-evidence contract for audio status, clock provenance,
+  restart recovery and recognition-only records; documented classifier environment
+  controls and the cached-model deployment boundary.
+- Corrected the September 5 replay record: the LED grayscale fix was subsequently
+  compiled and uploaded, while human visual acceptance and stimulus identification
+  remain open.
+- Re-ran all 37 Python tests and the sanitized portable C++17 test; both passed and
+  the shared CRC vector remained `170aea81`.
+- No board operation or new field evidence was performed during this documentation
+  pass. Labeled replay, power-cut/reboot matrix, endurance, visual LED confirmation
+  and measured whole-board power remain outstanding.
+- Reworked `PROJECT_EVOLUTION.md` into a contest-ready Story organized around what
+  the project is, why it was built, how it works, demonstrated evidence, failure
+  learning, reproduction and next steps. Added ready-to-place figure/video captions.
+- Collected every current logical and electrical diagram in `SCHEMATICS.md`: system
+  path, verified six-net wiring, event timing, cross-processor sequence and storage
+  fallback. No Fritzing/PCB or enclosure CAD artifact is claimed.
+- Clarified that the one-microphone prototype is a staged engineering priority, not
+  a permanent limitation. Planned progression is synchronized multi-channel capture,
+  geometry/timing validation, direction testing and only then optional camera motion.
+- Renamed the deployed application identity from the compatibility-era `audio-test`
+  to `SylvaEchoLens`; the source directory remains `app_audio_test/` for continuity.
+- Deleted the unrelated uninitialized app that previously occupied the
+  `sylvaecholens` identifier, then moved the real application with its 545 MiB of
+  events, environment and BirdNET cache intact. The old `audio-test` path is absent.
+- The first ambient inference exposed a BirdNET multiprocessing import failure:
+  the spawned worker executed top-level App Lab setup and collided with the primary
+  process on atomic temporary files. Audio evidence remained, the error was logged
+  and startup recovery indexed the orphan.
+- Moved runtime setup behind a primary-process entrypoint, added a `__mp_main__`
+  regression test and passed all 38 host tests. Redeployed with rollback snapshot
+  `20260914-070146-before-app-deploy`; `SylvaEchoLens` is running, BirdNET is cached,
+  suspend is disabled and the gate returned to stable `listening`.
+- Fresh events 13 and 14 subsequently completed retention and BirdNET inference
+  without a duplicate App Lab initialization or restart. Both decisions were
+  `unknown` (0.101 and 0.025). Stimulus identity was not confirmed, so these are
+  runtime-fix evidence rather than labeled assiolo results.
+- During the announced assiolo replay, events 17 and 18 passed the independent WAV
+  audit and BirdNET accepted `Otus scops_Eurasian Scops-Owl` at 0.996271 and
+  0.997038. Both retained their audio and had zero clipped samples. Exact CRC,
+  SHA-256, timing and input/model geometry are preserved in
+  `2026-09-14-FIELD-TEST-ASSIOLO.md` and the ignored evidence directory.
+- This is recorded as a controlled replay observation. Source URL/title/license,
+  speaker distance and playback setting are still missing, so it is not described
+  as a spontaneous wildlife observation or a completed accuracy evaluation.
+- Added the planned field-hardware direction to the contest Story and schematics:
+  photovoltaic charging, protected battery and regulated power inside a
+  weather-resistant enclosure, with a downward-facing microphone port protected by
+  a hydrophobic acoustic membrane and replaceable open-cell foam windscreen. These
+  are planned components; sizing, ingress, condensation and acoustic-response tests
+  remain before any autonomy or waterproofing claim.
+
 ## 2026-09-13 — Implement bounded offline persistence
 
 - Added separate audio, record and system-space boundaries. The default retention

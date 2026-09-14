@@ -1,5 +1,8 @@
 # Offline by design: preserve observations, not dependence on a connection
 
+Implementation status reviewed on September 14, 2026; see the
+[current status ledger](CURRENT_STATUS.md) for the cross-project evidence boundary.
+
 ## Design intent
 
 Sylva EchoLens should keep observing even when there is no network to report to.

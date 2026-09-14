@@ -1,7 +1,7 @@
 # Acoustic replay test — September 5, 2026
 
-Status: user confirmed playback; three event files audited. LED display defect
-identified in source; acoustic stimulus identification and visual fix still pending.
+Status at the end of this trial: user confirmed playback and three event files were
+audited. The acoustic stimulus identity was not established.
 
 ## Purpose and stimulus
 
@@ -31,7 +31,7 @@ volume, a few seconds of playback, followed by 20 seconds without playback.
 - A fresh MCU boot/calibration sequence was not observed in this check; restarting
   the Linux receiver alone must not be described as recalibrating the MCU.
 
-## Pending verification
+## Results and pending verification
 
 ### Results inspected after playback — approximately 19:08 UTC
 
@@ -45,10 +45,9 @@ volume, a few seconds of playback, followed by 20 seconds without playback.
   transfers. Do not claim every replayed call was retained.
 - Source audio identity has not been confirmed by listening. These are verified
   transport results, not a successful species-recognition or acoustic-fidelity test.
-- Board Python source hashes match the correct project checkout. Repository
-  relocation did not flash the MCU or change those active Python files.
 
-### LED diagnosis — source evidence, not yet fixed or device-verified
+
+### LED diagnosis — subsequently corrected
 
 The explanation that low RMS alone accounted for the blank display was insufficient:
 telemetry during playback included RMS 163.2 and 116.9, above the first LED threshold
@@ -60,23 +59,24 @@ zero: the matrix remains dark even with nonzero bars. At default depth 3, value 
 is only the dimmest level. This boot-state dependency plausibly explains why the
 same sketch can appear different after a board restart.
 
-Proposed correction: explicitly set grayscale depth and matching bright pixel
-values in the sketch, then verify on the board. Actual runtime grayscale state
-has not been read back. No firmware or threshold changes were made during this
-diagnosis. Existing tests of audio integrity do not validate the LED display.
+The subsequent correction explicitly set grayscale depth and matching bright pixel
+values in the sketch. It compiled on September 8 and the matching firmware was
+uploaded; see [validation](VALIDATION.md#september-8-2026--release-pipeline-integration-host-only).
+Actual runtime grayscale state was not read back and a human visual check is still
+required. No firmware or threshold changes were made during the September 5
+diagnosis itself. Existing tests of audio integrity do not validate the LED display.
 
 ### Receiver restart at user request — 19:04 UTC
 
-The user reported no visible LED scrolling. The container was running; stopped
+There was no visible LED scrolling. The container was running; stopped
 and started it at 19:04:45 UTC without a firmware upload. Fresh telemetry through
 19:05:05 UTC confirmed `listening`, RMS approximately 1.7–4.0, opening threshold
 96 and unchanged skip count 17. The first LED level requires RMS 65, so these
 measured levels produce a blank matrix by design, not proof of stopped capture.
 No user playback or acoustic-fidelity result is inferred from this check.
 
-After the user confirms playback, identify newly completed event WAV/JSON pairs
-by session, event ID and receive time. Independently verify geometry, CRC, SHA,
-confirmation-frame RMS and the 0.512-second pre-event boundary. Listen to the
-recording and label which event actually contains the replay, rather than assuming
-every threshold crossing was caused by the owl sound. Retain raw evidence locally
-under ignored `artifacts/`; record results here after verification.
+The three newly completed pairs were identified and their transport integrity was
+verified as recorded above. The remaining action is to listen to and label the
+recordings and connect any claimed replay event to a documented source, playback
+time, level and distance. Do not retroactively treat these files as a labeled
+BirdNET result: the model was not enabled during this trial.

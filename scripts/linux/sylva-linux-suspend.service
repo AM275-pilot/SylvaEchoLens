@@ -1,6 +1,6 @@
 [Unit]
 Description=Sylva EchoLens Linux suspend-to-idle request
-Documentation=file:///home/arduino/ArduinoApps/audio-test/power/README
+Documentation=file:///home/arduino/ArduinoApps/sylvaecholens/power/README
 
 [Service]
 Type=oneshot

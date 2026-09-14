@@ -1,5 +1,8 @@
 # Project documentation: build Sylva EchoLens
 
+Reconciled with the September 14, 2026 implementation. Check
+[current status](CURRENT_STATUS.md) before reproducing or presenting the prototype.
+
 This page is the beginner-oriented path through the project. It explains what the
 prototype does, what to obtain, how to wire it, how to reproduce the software, and
 which evidence is still required for a complete project publication. Detailed
@@ -36,9 +39,13 @@ Extended battery autonomy remains an unmeasured target.
 6. Reports `unknown` below the configured 0.25 acceptance threshold while retaining
    the five ranked candidates for inspection.
 
-The capture and inference path has run on the physical board. Recognition quality is
-not yet established because the required labeled playback and negative-control set
-has not been completed. See [validation](VALIDATION.md) for exact evidence and limits.
+The capture and inference path has run on the physical board. Two audited events
+from an announced assiolo replay produced accepted `Otus scops` results at 0.996 and
+0.997. Recognition quality is not yet established because replay provenance and the
+required negative-control set are incomplete. See [validation](VALIDATION.md) for
+exact evidence and limits.
+The current host baseline is 38 passing Python tests plus the sanitized portable
+C++ gate/buffer/sample-contract test.
 
 ## Complete bill of materials
 
@@ -81,6 +88,11 @@ BirdNET model licensing and its verified hash are recorded in the
 [model card](BIRDNET_MODEL_CARD.md).
 
 ## Circuit schematic and physical wiring
+
+All current publication diagrams, including the system path, event timing,
+cross-processor sequence and offline-storage decision, are collected in
+[Sylva EchoLens schematics](SCHEMATICS.md). The circuit below remains the concise
+wiring view used by this recreation guide.
 
 The microphone is powered only from 3.3 V. Disconnect USB power before changing
 wires. Confirm the labels printed on the actual breakout because board layouts vary.
@@ -140,8 +152,9 @@ git remote -v
 git status --short
 ```
 
-The active implementation is `app_audio_test/`; its old directory name is retained
-for compatibility with the deployed App Lab application.
+The active implementation is `app_audio_test/`; its historical source-directory
+name is retained for repository continuity. On the board it is deployed and shown
+as `SylvaEchoLens` under `/home/arduino/ArduinoApps/sylvaecholens`.
 
 ### 2. Wire one microphone
 

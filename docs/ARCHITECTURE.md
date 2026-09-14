@@ -1,9 +1,13 @@
 # Architecture and code guide
 
+Current architecture as of September 14, 2026. For the evidence level of each
+component, see the [current status ledger](CURRENT_STATUS.md).
+
 ## Boundaries
 
-The active application is `app_audio_test/`; its directory name is retained for
-compatibility with the deployed App Lab application.
+The active source application is `app_audio_test/`; its directory name is retained
+for repository continuity. The deployed App Lab application is named
+`SylvaEchoLens` and lives at `/home/arduino/ArduinoApps/sylvaecholens`.
 
 | Module | Responsibility |
 |---|---|
@@ -15,7 +19,7 @@ compatibility with the deployed App Lab application.
 | `python/event_receiver.py` | Bounded assembly, format conversion and checksum validation |
 | `python/offline_store.py` | Quotas, retention, temporary inference, recovery and time evidence |
 | `python/power_manager.py` | Idle policy, MCU arm/disarm handshake and fail-safe suspend request lifecycle |
-| `python/main.py` | App Lab callbacks and bounded offline persistence worker |
+| `python/main.py` | Guarded primary-process entrypoint, App Lab callbacks and bounded offline persistence worker |
 | `scripts/linux/sylva-linux-suspend` | Root-owned, narrowly scoped suspend-to-idle helper |
 
 ## Sample continuity
@@ -103,6 +107,10 @@ at zero internal threshold, then reports `unknown` unless the best score reaches
 configured 0.25 threshold. Geographic filtering is initially disabled and recorded
 as null rather than inferred from an unstated location. Model loading is amortized
 between events while the application is awake.
+
+BirdNET uses spawned worker processes. Runtime construction in `main.py` is guarded
+by the primary-process entrypoint so a worker importing `__mp_main__` cannot create
+a second App Lab instance or write to the observation store during inference.
 
 Inference failure is fail-open for evidence retention: the WAV remains and the JSON
 records an explicit `classification_error`. The current development variant excludes

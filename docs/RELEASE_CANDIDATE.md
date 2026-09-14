@@ -1,5 +1,8 @@
 # Release candidate path
 
+Gate status reviewed on September 14, 2026. This checklist should be read together
+with the [current capability ledger](CURRENT_STATUS.md).
+
 This is the shortest honest path from the current prototype to a published or field
 release candidate. It keeps technical plumbing distinct from wildlife-model claims.
 
@@ -8,12 +11,15 @@ release candidate. It keeps technical plumbing distinct from wildlife-model clai
 | Segment | Status | Evidence needed to advance |
 |---|---|---|
 | Microphone → event gate → checked WAV/JSON | Device-tested | Repeat after final deployment |
-| Checked WAV → BirdNET v2.4 metadata | Device-tested | Labeled replay and negative controls |
+| Checked WAV → BirdNET v2.4 metadata | Device-tested; two audited assiolo replay events accepted at 0.996/0.997 | Complete replay provenance and negative controls |
 | Prediction quality | Not established | Versioned labeled set, confusion matrix and unknown policy |
 | LED level display | Fix uploaded | Human visual board check |
 | Offline persistence | Deployed; isolated quota/retention/restart and networkless compact inference smoke-tested | Power-cut and endurance acceptance |
 | Linux suspend-to-idle and STM32 event wake | Excluded from release; acoustic UART wake failed device acceptance | Revisit only with a separately verified hardware wake path |
 | Publication package | Documentation structure assembled | Final photos, screenshots, demo video and labeled evidence |
+
+Latest host recheck: 38 Python tests and the sanitized C++17 acoustic pipeline test
+pass. This does not advance the device-only or field-evidence gates in the table.
 
 The first release model is BirdNET v2.4 FP32 via LiteRT. Remaining product decisions
 are the deployment location/date filter, representative evaluation recordings and
