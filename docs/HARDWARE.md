@@ -1,9 +1,14 @@
 # Hardware: one microphone
 
+Hardware boundary reviewed on September 14, 2026. Recent inference, persistence
+and suspend experiments did not add a second microphone, camera, servo or battery.
+
 Current assembly: Arduino UNO Q and one INMP441 I2S MEMS microphone.
 
 For the complete device/lab/software BOM and the beginner build sequence, see
 [project documentation](PROJECT_DOCUMENTATION.md#complete-bill-of-materials).
+For the complete current set of electrical and logical diagrams, see
+[Sylva EchoLens schematics](SCHEMATICS.md).
 
 | Wire color | Microphone pin | UNO Q header | STM32 function |
 |---|---|---|---|
@@ -20,6 +25,26 @@ not I2C. A4 carries digital I2S data, not an analog microphone voltage.
 I2S uses two 32-bit slots per frame, but only the left slot contains the one
 microphone signal. The right slot is not a second microphone. Do not infer
 direction or stereo recording from the frame format.
+
+This describes the current milestone, not a permanent ceiling. A future localization
+stage can add genuinely synchronized microphone hardware, then validate channel
+alignment, geometry and angular error before any direction result is used. The
+present work prioritizes a trustworthy mono evidence path first.
+
+## Planned autonomous enclosure
+
+The field-hardware direction adds a photovoltaic panel, protected rechargeable
+battery, charge controller and regulated supply after whole-board energy has been
+measured. No panel wattage, battery capacity or autonomy is selected yet.
+
+Electronics are planned inside a weather-resistant enclosure. The microphone port
+will face downward and use a purpose-made hydrophobic acoustic membrane plus a
+replaceable open-cell foam windscreen so sound can enter while direct droplets, wind
+and debris are reduced. Foam is not treated as waterproofing by itself. Spray,
+drainage, condensation, temperature and before/after acoustic-response tests are
+required before assigning an ingress rating or deploying unattended.
+
+The conceptual arrangement is shown in [Sylva EchoLens schematics](SCHEMATICS.md#6-planned-field-power-and-enclosure--not-yet-implemented).
 
 ## Connection diagram
 

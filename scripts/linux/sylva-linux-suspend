@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-power_dir=/home/arduino/ArduinoApps/audio-test/power
+power_dir=/home/arduino/ArduinoApps/sylvaecholens/power
 request="$power_dir/suspend.request"
 result="$power_dir/suspend.result"
 uart_wakeup=/sys/class/tty/ttyHS1/power/wakeup

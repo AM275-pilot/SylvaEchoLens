@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-power_dir=/home/arduino/ArduinoApps/audio-test/power
+power_dir=/home/arduino/ArduinoApps/sylvaecholens/power
 
 systemctl disable --now sylva-linux-suspend.path 2>/dev/null || true
 systemctl stop sylva-linux-suspend.service 2>/dev/null || true

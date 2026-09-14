@@ -1,10 +1,15 @@
 # Repository identity and provenance
 
+Identity reviewed on September 14, 2026 from `develop` at `92dd668`; documentation
+changes after that baseline are working-tree changes until committed. Current
+capabilities are summarized in [current status](CURRENT_STATUS.md).
+
 ## Authoritative project
 
 - Remote: <https://github.com/AM275-pilot/SylvaEchoLens.git>
 - Active application: `app_audio_test/`
-- Board application: `/home/arduino/ArduinoApps/audio-test`
+- Board application name: `SylvaEchoLens`
+- Board application path: `/home/arduino/ArduinoApps/sylvaecholens`
 
 Before making changes or deploying, verify the checkout instead of relying on a
 workstation-specific path:
@@ -34,8 +39,8 @@ a validation claim.
 
 Do not encode a local checkout path, ADB serial or upload port in source or
 documentation. Discover the connected device and pass the current upload port
-explicitly. The fixed board application path is intentional because it is the
-deployed App Lab application identity.
+explicitly. The fixed lowercase board path is the App Lab identifier for the
+displayed `SylvaEchoLens` application name.
 
 The custom loader hash and recovery procedure are documented in the
 [runbook](RUNBOOK.md). A clean checkout still needs that verified generated

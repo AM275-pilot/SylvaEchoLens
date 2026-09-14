@@ -1,4 +1,4 @@
-name: audio-test
+name: SylvaEchoLens
 icon: "🎙️"
 description: >
   Sylva EchoLens mono acoustic observer. The MCU estimates background energy

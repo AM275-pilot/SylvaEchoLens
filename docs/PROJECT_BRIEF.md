@@ -1,5 +1,8 @@
 # Project brief
 
+Current scope reviewed on September 14, 2026. The concise implementation and
+verification ledger is maintained in [current status](CURRENT_STATUS.md).
+
 ## Purpose
 
 Sylva EchoLens aims to detect, classify and document wildlife vocalizations
@@ -13,9 +16,11 @@ is planned but not yet implemented.
 One INMP441 microphone supplies mono audio at a configured 16 kHz. The STM32
 selects candidate acoustic events using lightweight energy measurements.
 A Linux receiver writes verified audio and provenance, then runs the official
-BirdNET v2.4 FP32 model locally. Board inference and a network-disconnected rerun
-have succeeded on an unlabeled event. A labeled replay and negative controls are
-still required before making a species-recognition claim.
+BirdNET v2.4 FP32 model locally. Board inference, a network-disconnected rerun and
+two audited events from an announced assiolo replay have succeeded. BirdNET returned
+`Otus scops` at 0.996 and 0.997. Complete replay provenance and negative controls are
+still required before making a representative species-recognition claim.
+See the exact [assiolo field-test record](2026-09-14-FIELD-TEST-ASSIOLO.md).
 
 The variant being developed is the lightweight acoustic-only unit: no camera and
 no servo mechanism. Very low power is its engineering objective, not yet a measured
@@ -55,6 +60,13 @@ notifications and a multi-node view. These are desired extensions, not current
 features. Two microphones alone also impose geometric ambiguities on direction
 estimation; camera aiming needs a separately validated design.
 
+The planned outdoor variant adds solar charging, a protected rechargeable battery
+and a weather-resistant enclosure. Electronics remain in the sealed compartment;
+the downward-facing microphone port uses a hydrophobic acoustic membrane and
+replaceable open-cell foam windscreen. Power sizing, ingress protection,
+condensation behavior and the acoustic effect of the protective materials all
+require measurement before deployment claims are made.
+
 The supported energy design removes unnecessary inference while Linux remains
 awake. A future power-state design requires a separately verified wake path. Any
 battery-life or solar-assisted autonomy target requires actual measurements and
@@ -68,8 +80,9 @@ wildlife and must be evaluated.
 A quiet background does not create a stream of WAV files. A new sound raises the
 gate, which preserves its beginning and captures a complete window. The receiver
 checks the audio and records the reason it was selected. The local model attaches
-ranked candidates and keeps a weak result as `unknown`. The next milestone is a
-labeled playback with negative controls; the dashboard remains future work.
+ranked candidates and keeps a weak result as `unknown`. A first announced assiolo
+replay passed; the next milestone completes its provenance and adds negative
+controls. The dashboard remains future work.
 
 ## Publication discipline
 

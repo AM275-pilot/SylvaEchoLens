@@ -1,5 +1,8 @@
 # BirdNET v2.4 integration card
 
+Integration status reviewed on September 14, 2026. Model execution is verified;
+recognition quality on a labeled device-specific set is not.
+
 ## Identity and license
 
 - Python package: `birdnet==1.1.1`, with transitive versions locked in
@@ -33,6 +36,10 @@ the ranked candidates remain available for audit. BirdNET includes some non-bird
 classes, including human non-vocal sounds, engines and power tools. Geographic and
 seasonal filtering is not active because a deployment location has not been fixed.
 
+BirdNET prediction uses multiprocessing even with one configured worker. The App Lab
+entrypoint is therefore protected from `__mp_main__` imports; inference workers must
+not initialize another Bridge or observation store.
+
 ## Verification status
 
 On 2026-09-09 the UNO Q ran the model against a previously stored, unlabeled event.
@@ -41,7 +48,12 @@ The same inference succeeded in an ephemeral Docker container with networking se
 to `none`, using only the persisted environment, model and event. This verifies
 local execution, not species accuracy.
 
-A defensible recognition result still requires a newly captured, labeled playback
-with source URL/title, expected species, playback distance and volume noted. Follow
-with speech and quiet controls. Do not treat the old unlabeled event as wildlife
-evidence or tune the threshold from a single playback.
+On September 14 an announced assiolo replay produced two audited retained events.
+BirdNET reported `Otus scops_Eurasian Scops-Owl` at 0.996271 and 0.997038, both above
+the 0.25 threshold. The detailed evidence is in the
+[field-test record](2026-09-14-FIELD-TEST-ASSIOLO.md).
+
+This is a strong positive replay demonstration, not a complete accuracy result.
+Source URL/title, license, playback distance and volume still require annotation,
+followed by speech, quiet and representative background controls. Do not present the
+replay as a wild observation or tune the threshold from these two events alone.

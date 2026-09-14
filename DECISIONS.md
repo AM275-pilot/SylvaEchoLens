@@ -1,5 +1,8 @@
 # Architecture decisions
 
+Decision set reviewed on September 14, 2026. The resulting implementation and
+verification boundary is summarized in [current status](docs/CURRENT_STATUS.md).
+
 | ID | Date | Decision | Reason and consequence |
 |---|---|---|---|
 | ADR-001 | 2026-09-05 | One microphone for the current milestone | Direction finding is excluded. Two I2S slots are framing, not two sensors. |

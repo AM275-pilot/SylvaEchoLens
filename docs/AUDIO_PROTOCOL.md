@@ -1,5 +1,7 @@
 # Audio protocol v1
 
+Protocol and persisted-evidence contract reviewed on September 14, 2026.
+
 Mono, configured 16,000 samples/second, signed PCM16. Event length: 32,768 samples
 (2.048 seconds). Pre-event history: 8,192 samples (0.512 seconds). Each chunk:
 256 samples; 128 chunks per event.
@@ -49,7 +51,16 @@ restarting the receiver if the event IDs move backwards.
 Each event has a same-basename JSON sidecar with protocol version, session,
 event ID, rate, channels, pre-event count, sample-relative trigger position,
 trigger/floor RMS, UTC receive time, transfer duration, CRC32, WAV SHA-256,
-DC mean, DC-removed RMS, peak and clipped-sample count. `classification` is null
+DC mean, DC-removed RMS, peak and clipped-sample count. It also records a device
+instance, boot counter, Linux boot ID, monotonic receive time, wall-clock source,
+declared clock quality/uncertainty and per-event processing durations.
+
+The `audio` object makes evidence availability explicit: retained audio includes
+its protected state; recognition-only output is `never_retained`; quota eviction is
+`removed_by_retention`; restart reconciliation can mark missing, corrupt or recovered
+audio. Records retain the original hash and a reason where available.
+
+`classification` is null
 until a model actually runs. A completed inference records `label`, normalized
 `score` in 0..1, `accepted`, decision `threshold`, model identity and version,
 backend, ranked candidates, input/model geometry, resampling/padding flags and the
@@ -58,4 +69,5 @@ null and adds `classification_error`; a model failure must not erase the observa
 
 The WAV is atomically renamed before the JSON is published. They are not a
 filesystem-wide atomic pair; consumers should discover finalized JSON files,
-then verify the referenced same-basename WAV.
+then inspect `audio.status` and verify the referenced same-basename WAV only when
+the record says it is present. Recognition-only records intentionally have no WAV.

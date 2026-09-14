@@ -1,5 +1,7 @@
 # Build, deploy and recover
 
+Runbook reviewed against the September 14, 2026 application and guarded scripts.
+
 ## Required baseline
 
 The active sketch needs the custom ArduinoCore-zephyr **0.90.0** / Zephyr **4.2**
@@ -45,36 +47,42 @@ An explicit `-Config` must select the same custom core as `-ToolchainRoot`.
 
 ## Linux deployment
 
-Use ADB from the Arduino installation. Target app:
-`/home/arduino/ArduinoApps/audio-test`.
+Use ADB from the Arduino installation. Target app: `SylvaEchoLens` at
+`/home/arduino/ArduinoApps/sylvaecholens`.
 
 1. Preserve the existing app Python folder and known sketch build.
-2. Stop the app with `arduino-app-cli app stop /home/arduino/ArduinoApps/audio-test`.
+2. Stop the app with `arduino-app-cli app stop /home/arduino/ArduinoApps/sylvaecholens`.
 3. Push `main.py`, `event_receiver.py`, `classification.py`, `offline_store.py`,
    `power_manager.py` and `requirements.txt` into its `python/` directory, plus the
    matching `app.yaml`.
-4. Start with `arduino-app-cli app start /home/arduino/ArduinoApps/audio-test`.
+4. Start with `arduino-app-cli app start /home/arduino/ArduinoApps/sylvaecholens`.
 5. Upload the matching sketch after the receiver is listening.
-6. Inspect `arduino-app-cli app logs /home/arduino/ArduinoApps/audio-test --tail 40`.
+6. Inspect `arduino-app-cli app logs /home/arduino/ArduinoApps/sylvaecholens --tail 40`.
 
 Inside the container, events default to `/app/events/`, backed by the app
 directory. A complete event produces a JSON record and either a retained WAV or an
 explicit `never_retained` audio status. This version does not update the old
 `test.wav`: it remains historical and must not be mistaken for a fresh event.
 
-Offline storage configuration uses integer byte counts:
+Runtime configuration is environment-based. Capacity values are integer byte counts:
 
 | Environment variable | Default | Meaning |
 |---|---:|---|
+| `SYLVA_EVENT_DIR` | `/app/events` | Persistent event records and retained WAVs |
 | `SYLVA_AUDIO_BUDGET_BYTES` | 536870912 | Maximum bytes in final owned event WAVs |
 | `SYLVA_RECORD_RESERVE_BYTES` | 16777216 | Space kept away from audio for JSON records |
 | `SYLVA_SYSTEM_RESERVE_BYTES` | 134217728 | Space not consumed by this application |
 | `SYLVA_RETENTION` | `delete_oldest` | `delete_oldest` or `recognition_only` |
 | `SYLVA_TEMP_DIR` | `/tmp/sylva-audio` | Bounded temporary inference-audio directory |
+| `SYLVA_CLASSIFIER_BACKEND` | `birdnet` | `birdnet`; use `disabled` or `none` only for explicit recovery/diagnosis |
+| `SYLVA_CLASSIFIER_THRESHOLD` | `0.25` | Accepted-decision threshold in the closed interval 0..1 |
 | `SYLVA_LINUX_SUSPEND` | `disabled` | Release default; `freeze` is an unsupported experiment |
 | `SYLVA_SUSPEND_IDLE_SECONDS` | `60` | Continuous idle time before requesting suspend |
 | `SYLVA_SUSPEND_REQUEST_TIMEOUT_SECONDS` | `120` | Maximum wait for a helper result before disarming |
 | `SYLVA_POWER_DIR` | `/app/power` | Request/result directory shared with the host helper |
+| `SYLVA_TIME_SOURCE` | `system_clock` | Declared UTC source written as evidence |
+| `SYLVA_TIME_QUALITY` | `unverified` | `synchronized`, `rtc`, or `unverified` |
+| `SYLVA_TIME_UNCERTAINTY_SECONDS` | unset | Nonnegative uncertainty; use only with an established clock procedure |
 
 Retention considers only `event-*.wav` under the event directory with a readable
 sidecar. Set `audio.protected` to `true` in a record to exclude its WAV. Never point
@@ -84,6 +92,11 @@ Time provenance defaults to `SYLVA_TIME_QUALITY=unverified`. Set
 `SYLVA_TIME_SOURCE`, `SYLVA_TIME_QUALITY` (`synchronized`, `rtc`, or `unverified`)
 and `SYLVA_TIME_UNCERTAINTY_SECONDS` only from an established clock procedure.
 A backward jump is always downgraded to `regressed`.
+
+The first online provisioning must install the pinned requirements and populate the
+persistent `.cache/birdnet` model directory. After that, normal inference is local;
+verify this by running the documented network-disabled check before field use. Do
+not delete the cache when deploying only matching application sources.
 
 ## Experimental suspend-to-idle — not for release deployment
 

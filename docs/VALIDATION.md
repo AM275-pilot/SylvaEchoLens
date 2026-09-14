@@ -1,5 +1,9 @@
 # Validation and acceptance experiments
 
+Current summary: 38 Python tests and the sanitized portable C++ test pass on the
+host as of September 14, 2026. Device evidence remains scoped to the dated records
+below; see [current status](CURRENT_STATUS.md) for the consolidated boundary.
+
 ## Host checks
 
 Python 3, no extra packages:
@@ -305,6 +309,69 @@ reliability or reduced whole-board energy.
 Conclusion: kernel suspend/resume is real, but acoustic UART wake and preservation of
 the wake-causing event were not demonstrated. Suspend-to-idle is rejected from the
 release and no energy-saving claim is attached to it.
+
+### September 14, 2026 — documentation reconciliation and host recheck
+
+- Verified repository root `D:/Repository/AMM/SylvaEchoLens/SylvaEchoLens`, branch
+  `develop`, baseline commit `92dd668` and authoritative origin before editing.
+- Re-ran the full host Python suite: all 37 tests passed.
+- Re-ran the C++17 acoustic pipeline test in WSL with `-Wall -Wextra -Werror` and
+  address/undefined-behavior sanitizers: it passed with cross-language CRC
+  `170aea81`.
+- Reconciled the capability ledger, protocol sidecar description, BirdNET/offline
+  status, deployment configuration and the historical LED follow-up.
+- No firmware build/upload, board deployment, labeled playback, physical power cut,
+  endurance run, power measurement or new device inference was performed. This
+  entry therefore adds host and documentation evidence only.
+
+### September 14, 2026 — application rename and inference-worker isolation
+
+- Removed the unrelated, uninitialized legacy app that already used the displayed
+  `SylvaEchoLens` name. Renamed the real 545 MiB `audio-test` application directory,
+  preserving its event archive, Python environment and BirdNET cache.
+- The active board identity is now `user:sylvaecholens`, displayed as
+  `SylvaEchoLens`, at `/home/arduino/ArduinoApps/sylvaecholens`. The old
+  `/home/arduino/ArduinoApps/audio-test` path is absent.
+- The first post-rename ambient inference exposed a multiprocessing defect: a
+  BirdNET spawn worker re-imported top-level `main.py`, started a second store and
+  collided on atomic temporary state/record files. The WAV was retained and the
+  inference failure was logged; startup recovery indexed the orphan evidence.
+- Moved all App Lab runtime construction behind the primary-process entrypoint and
+  added a regression test proving that a `__mp_main__` import has no app side effects.
+  The complete host suite now passes 38 tests.
+- Redeployed with rollback snapshot
+  `.codex-build/rollback/20260914-070146-before-app-deploy/`. The renamed app is
+  running with cached BirdNET enabled, suspend disabled, zero startup recovery
+  actions and stable `listening` telemetry.
+- Two fresh events then completed the full path without a worker-side App Lab import,
+  restart or atomic-file collision. Event 13 was retained with SHA-256
+  `5af942aa3fd0f73372c3bc1bfdb931eb51a99861e0b22cec498e64d9fff54bd4` and
+  BirdNET returned `unknown` at 0.101. Event 14 was retained with SHA-256
+  `55581f0c76fcf1598cab83ef3aec4412efca5f14dce22b7d9b425dba9092e875`
+  and returned `unknown` at 0.025. Their stimulus identity was not confirmed, so
+  they verify the runtime fix but are not labeled recognition evidence.
+
+### September 14, 2026 — announced assiolo field replay
+
+- Immediately before playback, the operator identified the intended stimulus as an
+  assiolo recording. This is a controlled replay observation, not a wild encounter.
+- Events 17 and 18 in session `d826aae0c4af492da71b26900f8cad56`
+  were retained and independently checked with `scripts/audit-events.py`; both
+  returned `verified: true`, exact geometry, matching CRC/SHA and zero clipping.
+- Event 17: received `05:04:36.229 UTC`, trigger RMS 115.404, transfer 13.269 s,
+  inference 7.752 s, CRC32 `4da4bc1e`, SHA-256
+  `574b4fe64536e3cf0f1379082b2516f9fad339da2b28afc219a0a2cd20fda73f`.
+  BirdNET accepted `Otus scops_Eurasian Scops-Owl` at 0.996271.
+- Event 18: received `05:04:53.144 UTC`, trigger RMS 218.242, transfer 13.260 s,
+  inference 8.297 s, CRC32 `ec77cefa`, SHA-256
+  `aa2a2628a96658b0e640c613a0c3201bcf0a7f283447adb32c6cec4ab995cf08`.
+  BirdNET accepted `Otus scops_Eurasian Scops-Owl` at 0.997038.
+- Local ignored evidence is under
+  `.codex-build/evidence/20260914-assiolo-replay/`; the detailed record is
+  [2026-09-14-FIELD-TEST-ASSIOLO.md](2026-09-14-FIELD-TEST-ASSIOLO.md).
+- Source title/URL/license, speaker distance and playback-volume setting were not
+  recorded. Those fields and quiet/speech/background controls remain necessary
+  before using the run as representative recognition-quality evidence.
 
 CRC proves transfer integrity, not acoustic fidelity. A plausible RMS does not
 establish bandwidth, calibration or species accuracy. The 16 kHz rate is
