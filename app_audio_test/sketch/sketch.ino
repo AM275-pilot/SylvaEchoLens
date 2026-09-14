@@ -25,8 +25,25 @@ static uint32_t lastTelemetryMs = 0;
 static uint32_t lastDisplayMs = 0;
 static uint32_t lastErrorMs = 0;
 static uint32_t lastTxMs = 0;
+static bool powerSaveArmed = false;
+static bool wakeNotified = false;
+static uint32_t wakeNotifiedMs = 0;
 static uint8_t levels[13] = {};
 static constexpr uint8_t kLedOn = 7;
+static constexpr uint32_t kLinuxWakeLeadMs = 1500;
+
+static bool setPowerSave(bool enabled) {
+    if (!enabled) {
+        powerSaveArmed = false;
+        wakeNotified = false;
+        return true;
+    }
+    // Suspend is safe only while the MCU owns no event that Linux must receive.
+    if (!healthy || sending || recorder.state() != EventBuffer::State::Listening) return false;
+    powerSaveArmed = true;
+    wakeNotified = false;
+    return true;
+}
 
 static void drawLevel() {
     // Approximately 6 dB per step, without requiring the loader's libm errno ABI.
@@ -50,6 +67,7 @@ void setup() {
     matrix.setGrayscaleBits(3);
     Bridge.begin();
     healthy = audio_init();
+    Bridge.provide("sylva_power_save", setPowerSave);
     Bridge.notify("sylva_boot", 1, healthy ? "ready" : "error", audio_last_error());
 }
 
@@ -84,6 +102,19 @@ void loop() {
     // Pace the UART transfer while continuing to drain queued DMA samples.
     if (recorder.state() == EventBuffer::State::Ready && millis() - lastTxMs >= 100) {
         lastTxMs = millis();
+        if (powerSaveArmed) {
+            if (!wakeNotified) {
+                // UART activity is the suspend-to-idle wake stimulus. The lead
+                // time lets Linux and the Bridge resume before event framing.
+                Bridge.notify("sylva_wake", eventId);
+                wakeNotified = true;
+                wakeNotifiedMs = millis();
+                return;
+            }
+            if (millis() - wakeNotifiedMs < kLinuxWakeLeadMs) return;
+            powerSaveArmed = false;
+            wakeNotified = false;
+        }
         if (!sending) {
             Bridge.notify("sylva_begin", eventId, kSampleRate, kEventSamples,
                           kPreSamples, triggerSample, triggerRms, triggerNoise);
@@ -108,7 +139,7 @@ void loop() {
         lastDisplayMs = now;
         drawLevel();
     }
-    if (now - lastTelemetryMs >= 1000) {
+    if (!powerSaveArmed && now - lastTelemetryMs >= 1000) {
         lastTelemetryMs = now;
         Bridge.notify("sylva_level", gate.stateName(), gate.rms(), gate.noiseRms(),
                       gate.openingThreshold(), gate.closingThreshold(), skippedEvents);

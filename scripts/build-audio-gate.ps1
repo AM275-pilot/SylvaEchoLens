@@ -2,7 +2,7 @@ param(
     [string]$Cli = "$env:LOCALAPPDATA\AppLab\resources\arduino\arduino-cli\arduino-cli.exe",
     [string]$Config = "",
     [string]$ToolchainRoot = "",
-    [string]$Port = "COM5",
+    [string]$Port = "",
     [switch]$Upload
 )
 $ErrorActionPreference = "Stop"
@@ -19,13 +19,15 @@ if ((Get-FileHash $loader -Algorithm SHA256).Hash -ne $expected) {
 $stage = Join-Path $repo ".codex-build/event-gate-source/sketch"
 $build = Join-Path $repo ".codex-build/event-gate-build"
 New-Item -ItemType Directory -Force -Path $stage, $build | Out-Null
-# The inherited sketch profile selects the stock core; stage sources without it.
+# App Lab project metadata may select the stock core. Staging only source files
+# ensures this build continues to use the verified custom loader above.
 Get-ChildItem (Join-Path $repo "app_audio_test/sketch") -File |
     Where-Object { $_.Extension -in ".ino", ".h", ".cpp" } |
     Copy-Item -Destination $stage -Force
 & $Cli compile --config-file $Config --fqbn arduino-git:zephyr:unoq --build-path $build $stage
 if ($LASTEXITCODE -ne 0) { throw "Sketch compilation failed." }
 if ($Upload) {
+    if (-not $Port) { throw "-Port is required when -Upload is selected." }
     & $Cli upload --config-file $Config --fqbn arduino-git:zephyr:unoq --port $Port --input-dir $build
     if ($LASTEXITCODE -ne 0) { throw "Sketch upload failed." }
 }

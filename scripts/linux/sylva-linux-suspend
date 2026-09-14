@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+power_dir=/home/arduino/ArduinoApps/audio-test/power
+request="$power_dir/suspend.request"
+result="$power_dir/suspend.result"
+uart_wakeup=/sys/class/tty/ttyHS1/power/wakeup
+
+write_result() {
+    status=$1
+    reason=$2
+    wake_irq=$3
+    temporary="$power_dir/.suspend.result.tmp"
+    {
+        printf 'status=%s\n' "$status"
+        printf 'reason=%s\n' "$reason"
+        printf 'wake_irq=%s\n' "$wake_irq"
+        printf 'completed_epoch=%s\n' "$(date +%s)"
+    } > "$temporary"
+    chown arduino:arduino "$temporary"
+    chmod 0644 "$temporary"
+    mv -f "$temporary" "$result"
+}
+
+if [ ! -f "$request" ]; then
+    exit 0
+fi
+
+IFS= read -r mode < "$request" || mode=
+rm -f "$request"
+if [ "$mode" != freeze ]; then
+    write_result failed unsupported_mode unknown
+    exit 1
+fi
+
+# The Bridge uses ttyHS1. Enabling its wake attribute is required before the
+# STM32's one-shot wake notification can resume Linux from suspend-to-idle.
+if [ ! -w "$uart_wakeup" ]; then
+    write_result failed uart_wakeup_unavailable unknown
+    exit 1
+fi
+printf 'enabled' > "$uart_wakeup"
+
+before=$(awk '/qcom_geni_serial_uart1/ { total=0; for (i=2; i<=NF && $i ~ /^[0-9]+$/; i++) total += $i; print total }' /proc/interrupts)
+sync
+
+# "freeze" is suspend-to-idle. It preserves the initial implementation's
+# recoverability while still stopping user-space and idling Linux CPUs.
+if printf 'freeze' > /sys/power/state; then
+    after=$(awk '/qcom_geni_serial_uart1/ { total=0; for (i=2; i<=NF && $i ~ /^[0-9]+$/; i++) total += $i; print total }' /proc/interrupts)
+    if [ -n "$before" ] && [ -n "$after" ]; then
+        wake_irq=$((after - before))
+    else
+        wake_irq=unknown
+    fi
+    write_result resumed event_or_enabled_wake_source "$wake_irq"
+else
+    write_result failed kernel_rejected_suspend unknown
+    exit 1
+fi

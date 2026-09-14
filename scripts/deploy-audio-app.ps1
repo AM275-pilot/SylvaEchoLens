@@ -5,11 +5,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$expectedRoot = "D:/Repository/AMM/SylvaEchoLens/SylvaEchoLens"
 $expectedOrigin = "https://github.com/AM275-pilot/SylvaEchoLens.git"
-$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path.Replace("\", "/")
+$scriptRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$root = (git -C $scriptRoot rev-parse --show-toplevel).Trim()
 
-if ($root -ne $expectedRoot) { throw "Refusing deployment from unexpected root: $root" }
+if ($LASTEXITCODE -ne 0) { throw "The deployment script must run from a Git checkout." }
+$root = (Resolve-Path $root).Path
+if ($root -ne $scriptRoot) { throw "The scripts directory is not at the repository root: $root" }
 if ($RemoteApp -ne "/home/arduino/ArduinoApps/audio-test") {
     throw "Refusing unexpected remote app path: $RemoteApp"
 }
@@ -39,6 +41,8 @@ $rollback = Join-Path $root ".codex-build/rollback/$stamp-before-app-deploy"
 $pythonRollback = Join-Path $rollback "python"
 New-Item -ItemType Directory -Force $pythonRollback | Out-Null
 
+# Record both contents and prior existence so a failed first-time deployment can
+# restore absence instead of leaving a mixed application revision behind.
 Invoke-Adb @("pull", "$RemoteApp/app.yaml", (Join-Path $rollback "app.yaml"))
 $requirementsExisted = $false
 & $AdbPath shell "test -f $RemoteApp/python/requirements.txt"
@@ -52,6 +56,15 @@ if ($LASTEXITCODE -eq 0) {
 foreach ($name in @("main.py", "event_receiver.py")) {
     Invoke-Adb @("pull", "$RemoteApp/python/$name", (Join-Path $pythonRollback $name))
 }
+$offlineStoreExisted = $false
+& $AdbPath shell "test -f $RemoteApp/python/offline_store.py"
+if ($LASTEXITCODE -eq 0) {
+    $offlineStoreExisted = $true
+    Invoke-Adb @(
+        "pull", "$RemoteApp/python/offline_store.py",
+        (Join-Path $pythonRollback "offline_store.py")
+    )
+}
 $classificationExisted = $false
 & $AdbPath shell "test -f $RemoteApp/python/classification.py"
 if ($LASTEXITCODE -eq 0) {
@@ -59,6 +72,15 @@ if ($LASTEXITCODE -eq 0) {
     Invoke-Adb @(
         "pull", "$RemoteApp/python/classification.py",
         (Join-Path $pythonRollback "classification.py")
+    )
+}
+$powerManagerExisted = $false
+& $AdbPath shell "test -f $RemoteApp/python/power_manager.py"
+if ($LASTEXITCODE -eq 0) {
+    $powerManagerExisted = $true
+    Invoke-Adb @(
+        "pull", "$RemoteApp/python/power_manager.py",
+        (Join-Path $pythonRollback "power_manager.py")
     )
 }
 
@@ -72,7 +94,7 @@ try {
     Invoke-Adb @("shell", "arduino-app-cli app stop $RemoteApp")
     $stopped = $true
     Invoke-Adb @("push", (Join-Path $root "app_audio_test/app.yaml"), "$RemoteApp/app.yaml")
-    foreach ($name in @("main.py", "event_receiver.py", "classification.py", "requirements.txt")) {
+    foreach ($name in @("main.py", "event_receiver.py", "classification.py", "offline_store.py", "power_manager.py", "requirements.txt")) {
         Invoke-Adb @("push", (Join-Path $root "app_audio_test/python/$name"), "$RemoteApp/python/$name")
     }
     Invoke-Adb @("shell", "arduino-app-cli app start $RemoteApp")
@@ -83,17 +105,22 @@ try {
 catch {
     if ($stopped) {
         & $AdbPath push (Join-Path $rollback "app.yaml") "$RemoteApp/app.yaml"
-        foreach ($name in @("main.py", "event_receiver.py", "classification.py")) {
+        foreach ($name in @("main.py", "event_receiver.py")) {
             $saved = Join-Path $pythonRollback $name
-            if (Test-Path -LiteralPath $saved) {
-                & $AdbPath push $saved "$RemoteApp/python/$name"
+            & $AdbPath push $saved "$RemoteApp/python/$name"
+        }
+        foreach ($entry in @(
+            @{ Name = "offline_store.py"; Existed = $offlineStoreExisted },
+            @{ Name = "classification.py"; Existed = $classificationExisted },
+            @{ Name = "power_manager.py"; Existed = $powerManagerExisted },
+            @{ Name = "requirements.txt"; Existed = $requirementsExisted }
+        )) {
+            $saved = Join-Path $pythonRollback $entry.Name
+            if ($entry.Existed) {
+                & $AdbPath push $saved "$RemoteApp/python/$($entry.Name)"
+            } else {
+                & $AdbPath shell "rm -f $RemoteApp/python/$($entry.Name)"
             }
-        }
-        if (-not $classificationExisted) {
-            & $AdbPath shell "rm -f $RemoteApp/python/classification.py"
-        }
-        if (-not $requirementsExisted) {
-            & $AdbPath shell "rm -f $RemoteApp/python/requirements.txt"
         }
         & $AdbPath shell "arduino-app-cli app start $RemoteApp"
     }

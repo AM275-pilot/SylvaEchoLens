@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for Sylva EchoLens suspend requests
+
+[Path]
+PathExists=/home/arduino/ArduinoApps/audio-test/power/suspend.request
+Unit=sylva-linux-suspend.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,14 +1,10 @@
 """Strict event assembly, independent of App Lab and suitable for host tests."""
 
 from datetime import datetime, timezone
-import hashlib
-import json
 import math
-from pathlib import Path
 import struct
 import time
 import uuid
-import wave
 import zlib
 
 SAMPLE_RATE = 16000
@@ -29,13 +25,27 @@ def decode_chunk(encoded):
 
 
 class EventReceiver:
-    """One in-flight event, bounded to 64 KiB and a 60-second receive deadline."""
+    """One in-flight event, bounded to 64 KiB and a 60-second receive timeout."""
 
-    def __init__(self, clock=time.monotonic):
+    def __init__(self, clock=time.monotonic, timestamp_factory=None):
         self.clock = clock
+        self.timestamp_factory = timestamp_factory or self._default_timestamp
         self.reset()
 
+    @staticmethod
+    def _default_timestamp():
+        return {
+            "utc": datetime.now(timezone.utc).isoformat(),
+            "quality": "unverified",
+            "source": "system_clock",
+            "uncertainty_seconds": None,
+            "boot_id": None,
+            "monotonic_seconds": time.monotonic(),
+        }
+
     def reset(self):
+        # A fresh session rejects delayed chunks from an earlier app process even
+        # when firmware event IDs restart from one after a board reset.
         self.session = uuid.uuid4().hex
         self.last_id = 0
         self.current = None
@@ -51,13 +61,16 @@ class EventReceiver:
         if not all(math.isfinite(float(v)) and float(v) >= 0 for v in (rms, floor)):
             raise ValueError("invalid trigger metrics")
         self.last_id = event_id
+        timestamp = self.timestamp_factory()
+        timestamp["trigger_sample"] = int(trigger_sample)
         self.current = {
             "event_id": event_id, "session": self.session,
             "sample_rate": SAMPLE_RATE, "samples": EVENT_SAMPLES,
             "channels": 1, "pre_samples": PRE_SAMPLES,
             "trigger_sample": int(trigger_sample),
             "trigger_rms": float(rms), "noise_rms": float(floor),
-            "received_at": datetime.now(timezone.utc).isoformat(),
+            "received_at": timestamp.get("utc", datetime.now(timezone.utc).isoformat()),
+            "timestamp": timestamp,
             "started": self.clock(), "chunks": {},
         }
 
@@ -95,44 +108,3 @@ class EventReceiver:
         metadata.update({"protocol": 1, "pcm_format": "s16le", "crc32": f"{crc:08x}",
                          "transfer_seconds": self.clock() - event["started"]})
         return pcm, metadata
-
-
-def write_event(directory, event, classify=None):
-    """Write WAV, optionally classify it, then publish its provenance sidecar."""
-    pcm, source_metadata = event
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-    metadata = dict(source_metadata)
-    name = f"event-{metadata['session']}-{metadata['event_id']:06d}"
-    path = directory / f"{name}.wav"
-    temporary = directory / f".{name}.wav.tmp"
-    with wave.open(str(temporary), "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(SAMPLE_RATE)
-        wav.writeframes(pcm)
-    temporary.replace(path)
-    values = struct.unpack(f"<{len(pcm) // 2}h", pcm)
-    mean = sum(values) / len(values)
-    metadata.update({
-        "duration_seconds": len(values) / SAMPLE_RATE,
-        "pre_seconds": metadata["pre_samples"] / SAMPLE_RATE,
-        "mean": mean,
-        "rms": math.sqrt(sum((value - mean) ** 2 for value in values) / len(values)),
-        "peak": max(abs(value) for value in values),
-        "clipped_samples": sum(value in (-32768, 32767) for value in values),
-        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-        "classification": None,
-    })
-    if classify is not None:
-        try:
-            metadata["classification"] = classify(path)
-        except Exception as exc:
-            # The checked recording remains useful evidence when inference fails.
-            metadata["classification_error"] = {
-                "type": type(exc).__name__, "message": str(exc),
-            }
-    sidecar_tmp = directory / f".{name}.json.tmp"
-    sidecar_tmp.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    sidecar_tmp.replace(directory / f"{name}.json")
-    return path, metadata
